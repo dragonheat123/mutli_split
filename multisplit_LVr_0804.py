@@ -6,17 +6,19 @@ from keras.layers import Dense, Dropout, Activation, LSTM
 
 import matplotlib.pyplot as plt
 
+np.random.seed(10)
+
 data = pd.read_csv('E://AC2016//a0804.csv',header=0)
 
-power_status = (data.ix[:,'power_status_LVr'])
-
+power_status = (data.ix[:,['power_status_B1','power_status_Mb','mode_B1','mode_Mb']])
 power_status_1hot = np.array(pd.get_dummies(power_status))
 
-selectionx = data.ix[:,['set_point_LVr','indoortemp_LVr','TemperatureC']]
+
+selectionx = data.ix[:,['set_point_B1','indoortemp_B1','set_point_Mb','indoortemp_Mb','TemperatureC']]
 selectionx = np.array(selectionx) 
 selectionx = np.concatenate((selectionx,power_status_1hot),axis=1)
 
-selectiony = np.array(data.ix[:,['power_LVr']])
+selectiony = np.array(data.ix[:,['power_B1']])
 
 frequency_mins = 10
 points = frequency_mins*2
@@ -88,7 +90,7 @@ xtest, ytest = selectionx_10min_std_array[40000:50000,:], power_10min_std_array[
 #### building network
 
 model = Sequential()
-model.add(LSTM(50, input_shape=(96, 5),return_sequences=True))
+model.add(LSTM(50, input_shape=(96, len(selectionx[0,:])),return_sequences=True))
 model.add(Dropout(0.2))
 model.add(LSTM(100,return_sequences=False))
 model.add(Dropout(0.2))
@@ -101,19 +103,22 @@ model.fit(xtrain, ytrain,verbose=1,batch_size=1000,epochs=20)
 predicted = model.predict(xtest)
 
 plt.figure(figsize=(16,8))
-plt.plot(ytest[1000:2000], color='black')
-plt.plot(predicted[1000:2000], color='blue')
+plt.plot(ytest[0:10000], color='black', linewidth=0.5)
+plt.plot(predicted[0:10000], color='blue', linewidth=0.5)
 plt.show()
 
 plt.figure(figsize=(16,8))
-plt.plot(ret_power(ytest[1000:2000]), color='black', linewidth=0.5)
-plt.plot(ret_power(predicted[1000:2000]), color='blue', linewidth=0.5)
+plt.plot(ret_power(ytest[1350:1500]), color='black', linewidth=0.5)
+plt.plot(ret_power(predicted[1350:1500]), color='blue', linewidth=0.5)
 plt.show()
 
-np.mean(np.abs((ret_power(predicted) - ret_power(ytest)) / ret_power(ytest)))
 
+real_pred=ret_power(predicted).astype(np.float64)
+real_pred[real_pred<100]=7
+real_power= ret_power(ytest).reshape(10000,1)
 
-
-
-
-
+c = np.abs(np.abs(real_pred-real_power)/real_power)
+mape = np.mean(c)
+rmse = np.sqrt(np.mean((real_pred-real_power)**2))
+print(mape)
+print(rmse)

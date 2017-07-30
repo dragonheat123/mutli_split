@@ -6,11 +6,17 @@ from keras.layers import Dense, Dropout, Activation, LSTM
 
 import matplotlib.pyplot as plt
 
-data = pd.read_csv('E://AC2016//a0804.csv',header=0)
+np.random.seed(10)
+
+data = pd.read_csv('E://AC2016//a0401.csv',header=0)
+
+####one hot encoding for categorical variables
 
 power_status = (data.ix[:,'power_status_LVr'])
 
 power_status_1hot = np.array(pd.get_dummies(power_status))
+
+####some editing to shape arrays for proper inputs
 
 selectionx = data.ix[:,['set_point_LVr','indoortemp_LVr','TemperatureC']]
 selectionx = np.array(selectionx) 
@@ -23,7 +29,6 @@ points = frequency_mins*2
 
 power_10min = []
 selectionx_10min = np.zeros([int(len(selectiony)/points),len(selectionx[0,:])])
-
 
 for i in range(points,len(selectiony)+points,points):
     if np.isnan(np.mean(selectiony[i-points:i]))==True:
@@ -63,7 +68,6 @@ def ret_selection(data):
 power_10min_std = stand_mat(power_10min)
 selectionx_10min_std = stand_mat(selectionx_10min)
         
-########normalizing
 
 ######breaking into timesteps
 ts = 96
@@ -72,7 +76,7 @@ power_10min_std_array = []
 
 for i in range(0,len(power_10min_std)-ts):
     selectionx_10min_std_array.append(selectionx_10min_std[i:i+ts,:])
-    power_10min_std_array.append(power_10min_std[i+ts])         ####already shifted
+    power_10min_std_array.append(power_10min_std[i+ts])                 #### at time T
    
 
 selectionx_10min_std_array = np.array(selectionx_10min_std_array) 
@@ -101,13 +105,13 @@ model.fit(xtrain, ytrain,verbose=1,batch_size=1000,epochs=20)
 predicted = model.predict(xtest)
 
 plt.figure(figsize=(16,8))
-plt.plot(ytest[1000:2000], color='black')
-plt.plot(predicted[1000:2000], color='blue')
+plt.plot(ytest[1:10000], color='black', linewidth=0.5)
+plt.plot(predicted[1:10000], color='blue', linewidth=0.5)
 plt.show()
 
 plt.figure(figsize=(16,8))
-plt.plot(ret_power(ytest[1000:2000]), color='black', linewidth=0.5)
-plt.plot(ret_power(predicted[1000:2000]), color='blue', linewidth=0.5)
+plt.plot(ret_power(ytest[2000:2500]), color='black', linewidth=0.5)
+plt.plot(ret_power(predicted[2000:2500]), color='blue', linewidth=0.5)
 plt.show()
 
 np.mean(np.abs((ret_power(predicted) - ret_power(ytest)) / ret_power(ytest)))
