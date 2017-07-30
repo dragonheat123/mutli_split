@@ -10,25 +10,22 @@ np.random.seed(10)
 
 data = pd.read_csv('E://AC2016//a0401.csv',header=0)
 
-####one hot encoding for categorical variables
-
-power_status = (data.ix[:,'power_status_LVr'])
-
+power_status = (data.ix[:,['power_status_B1','power_status_Mb','mode_B1','mode_Mb']])
 power_status_1hot = np.array(pd.get_dummies(power_status))
 
-####some editing to shape arrays for proper inputs
 
-selectionx = data.ix[:,['set_point_LVr','indoortemp_LVr','TemperatureC']]
+selectionx = data.ix[:,['set_point_B1','indoortemp_B1','set_point_Mb','indoortemp_Mb','TemperatureC']]
 selectionx = np.array(selectionx) 
 selectionx = np.concatenate((selectionx,power_status_1hot),axis=1)
 
-selectiony = np.array(data.ix[:,['power_LVr']])
+selectiony = np.array(data.ix[:,['power_B1']])
 
 frequency_mins = 10
 points = frequency_mins*2
 
 power_10min = []
 selectionx_10min = np.zeros([int(len(selectiony)/points),len(selectionx[0,:])])
+
 
 for i in range(points,len(selectiony)+points,points):
     if np.isnan(np.mean(selectiony[i-points:i]))==True:
@@ -68,6 +65,7 @@ def ret_selection(data):
 power_10min_std = stand_mat(power_10min)
 selectionx_10min_std = stand_mat(selectionx_10min)
         
+########normalizing
 
 ######breaking into timesteps
 ts = 96
@@ -76,7 +74,7 @@ power_10min_std_array = []
 
 for i in range(0,len(power_10min_std)-ts):
     selectionx_10min_std_array.append(selectionx_10min_std[i:i+ts,:])
-    power_10min_std_array.append(power_10min_std[i+ts])                 #### at time T
+    power_10min_std_array.append(power_10min_std[i+ts])         ####already shifted
    
 
 selectionx_10min_std_array = np.array(selectionx_10min_std_array) 
@@ -92,7 +90,7 @@ xtest, ytest = selectionx_10min_std_array[40000:50000,:], power_10min_std_array[
 #### building network
 
 model = Sequential()
-model.add(LSTM(50, input_shape=(96, 5),return_sequences=True))
+model.add(LSTM(50, input_shape=(96, len(selectionx[0,:])),return_sequences=True))
 model.add(Dropout(0.2))
 model.add(LSTM(100,return_sequences=False))
 model.add(Dropout(0.2))
@@ -105,19 +103,22 @@ model.fit(xtrain, ytrain,verbose=1,batch_size=1000,epochs=20)
 predicted = model.predict(xtest)
 
 plt.figure(figsize=(16,8))
-plt.plot(ytest[1:10000], color='black', linewidth=0.5)
-plt.plot(predicted[1:10000], color='blue', linewidth=0.5)
+plt.plot(ytest[0:10000], color='black', linewidth=0.5)
+plt.plot(predicted[0:10000], color='blue', linewidth=0.5)
 plt.show()
 
 plt.figure(figsize=(16,8))
-plt.plot(ret_power(ytest[2000:2500]), color='black', linewidth=0.5)
-plt.plot(ret_power(predicted[2000:2500]), color='blue', linewidth=0.5)
+plt.plot(ret_power(ytest[2000:2200]), color='black', linewidth=0.5)
+plt.plot(ret_power(predicted[2000:2200]), color='blue', linewidth=0.5)
 plt.show()
 
-np.mean(np.abs((ret_power(predicted) - ret_power(ytest)) / ret_power(ytest)))
 
+real_pred=ret_power(predicted).astype(np.float64)
+real_pred[real_pred<100]=7
+real_power= ret_power(ytest).reshape(10000,1)
 
-
-
-
-
+c = np.abs(np.abs(real_pred-real_power)/real_power)
+mape = np.mean(c)
+rmse = np.sqrt(np.mean((real_pred-real_power)**2))
+print(mape)
+print(rmse)
